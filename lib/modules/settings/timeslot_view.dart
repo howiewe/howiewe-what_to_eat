@@ -95,8 +95,11 @@ class TimeSlotController extends GetxController {
       initialTime: initial ?? TimeOfDay.now(),
     );
     if (picked != null) {
-      if (isStart) startTime.value = picked;
-      else endTime.value = picked;
+      if (isStart) {
+        startTime.value = picked;
+      } else {
+        endTime.value = picked;
+      }
     }
   }
 }
@@ -116,7 +119,7 @@ class TimeSlotView extends StatelessWidget {
       ),
       body: Obx(() => ListView.separated(
         itemCount: controller.db.timeSlots.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final item = controller.db.timeSlots[index];
           return Dismissible(

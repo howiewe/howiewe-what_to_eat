@@ -4,8 +4,7 @@ import 'package:get/get.dart';
 import 'home_controller.dart';
 import '../../data/services/database_service.dart';
 import '../../data/models/restaurant_model.dart';
-import '../settings/settings_view.dart'; // 引入設定頁面
-import '../settings/settings_hub_view.dart'; 
+import '../settings/settings_hub_view.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -193,7 +192,7 @@ class HomeView extends StatelessWidget {
           // --- UX 核心邏輯 ---
           if (hasMenu)
             FilledButton.icon(
-              onPressed: () => _showMenuDialog(context, result),
+              onPressed: () => _showMenuDialog(context, result, controller),
               icon: const Icon(Icons.menu_book),
               label: const Text("查看菜單"),
               style: FilledButton.styleFrom(
@@ -229,29 +228,48 @@ class HomeView extends StatelessWidget {
     RestaurantModel result,
     HomeController controller,
   ) {
+    // 預先判斷類型
+    final hasContact =
+        result.contactInfo != null && result.contactInfo!.isNotEmpty;
+    final isUrl = hasContact ? controller.isUrl(result.contactInfo!) : false;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
+        // 重抽按鈕
         IconButton.filledTonal(
           onPressed: controller.startRoll,
           icon: const Icon(Icons.refresh),
           tooltip: "重抽",
         ),
-        if (result.contactInfo != null)
+
+        // 聯絡按鈕 (根據類型變化圖示)
+        if (hasContact)
           IconButton.filled(
-            onPressed: () => Get.snackbar("聯絡", "開啟: ${result.contactInfo}"),
-            icon: const Icon(Icons.call),
-            tooltip: "訂餐",
+            onPressed: () => controller.launchContactInfo(result.contactInfo!),
+            // 如果是網址顯示地球，否則顯示電話
+            icon: Icon(isUrl ? Icons.public : Icons.call),
+            // 顏色區分：網址用藍色調，電話用綠色調
+            style: IconButton.styleFrom(
+              backgroundColor: isUrl ? Colors.blue : Colors.green,
+            ),
+            tooltip: isUrl ? "開啟網頁" : "撥打電話",
           ),
       ],
     );
   }
 
   // --- 菜單全螢幕展示 Dialog ---
-  void _showMenuDialog(BuildContext context, RestaurantModel result) {
+  void _showMenuDialog(BuildContext context, RestaurantModel result, HomeController controller) {
+    // *注意：這裡記得要在參數加上 HomeController controller 以便呼叫邏輯*
+    
+    // 預先判斷
+    final hasContact = result.contactInfo != null && result.contactInfo!.isNotEmpty;
+    final isUrl = hasContact ? controller.isUrl(result.contactInfo!) : false;
+
     Get.dialog(
       Scaffold(
-        backgroundColor: Colors.black, // 深色背景專注看圖
+        backgroundColor: Colors.black,
         appBar: AppBar(
           backgroundColor: Colors.black,
           iconTheme: const IconThemeData(color: Colors.white),
@@ -259,23 +277,14 @@ class HomeView extends StatelessWidget {
         ),
         body: Stack(
           children: [
-            // 1. 可縮放的圖片
+            // 1. 圖片
             Center(
               child: InteractiveViewer(
-                child: Image.file(
-                  File(result.menuImage!),
-                  errorBuilder: (ctx, err, stack) => const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white, size: 50),
-                      Text("圖片讀取失敗", style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
-                ),
+                child: Image.file(File(result.menuImage!)),
               ),
             ),
-
-            // 2. 下方懸浮訂購鈕 (看完菜單 -> 訂購)
+            
+            // 2. 下方懸浮訂購鈕
             Positioned(
               left: 20,
               right: 20,
@@ -286,30 +295,40 @@ class HomeView extends StatelessWidget {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () {
-                          Get.back(); // 關閉菜單
-                          if (result.contactInfo != null) {
-                            // 這裡可以換成 url_launcher 打電話
-                            Get.snackbar("訂購", "正在撥打: ${result.contactInfo}");
+                          // 如果有聯絡資訊，執行動作
+                          if (hasContact) {
+                            controller.launchContactInfo(result.contactInfo!);
                           } else {
-                            Get.snackbar("提示", "這家店沒有紀錄電話喔");
+                            Get.snackbar("提示", "這家店沒有紀錄聯絡資訊喔");
                           }
+                          // 根據需求決定要不要關閉菜單，通常打電話會跳出 App，所以關不關都可以
+                          // Get.back(); 
                         },
-                        icon: const Icon(Icons.phone),
-                        label: const Text("決定訂購"),
+                        // 動態更換圖示
+                        icon: Icon(isUrl ? Icons.public : Icons.call), 
+                        // 動態更換文字
+                        label: Text(
+                          !hasContact 
+                              ? "決定這家 (無聯絡資訊)" 
+                              : (isUrl ? "前往訂購網頁" : "撥打電話訂購")
+                        ),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.green,
+                          // 動態更換顏色
+                          backgroundColor: !hasContact 
+                              ? Colors.grey 
+                              : (isUrl ? Colors.blue : Colors.green),
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
+            )
           ],
         ),
       ),
-      useSafeArea: false, // 全螢幕覆蓋
+      useSafeArea: false,
     );
   }
 

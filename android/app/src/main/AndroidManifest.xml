@@ -3,6 +3,24 @@
     <!-- 這裡加入了讀取外部儲存空間的權限，讓你可以選取相簿照片 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
 
+    <queries>
+        <!-- 允許撥打電話 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+        <!-- 允許開啟網頁 (https) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <!-- 允許開啟網頁 (http) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
+
     <application
         android:label="what_to_eat"
         android:name="${applicationName}"
