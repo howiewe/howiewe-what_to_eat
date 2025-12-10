@@ -5,6 +5,7 @@ import 'home_controller.dart';
 import '../../data/services/database_service.dart';
 import '../../data/models/restaurant_model.dart';
 import '../settings/settings_view.dart'; // 引入設定頁面
+import '../settings/settings_hub_view.dart'; 
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -38,7 +39,7 @@ class HomeView extends StatelessWidget {
               tooltip: "資料管理",
               onPressed: () {
                 // 跳轉到設定頁面
-                Get.to(() => const SettingsView());
+                Get.to(() => const SettingsHubView());
               },
             ),
           ),

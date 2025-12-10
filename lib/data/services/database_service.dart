@@ -128,6 +128,33 @@ class DatabaseService extends GetxService {
     _saveRestaurants();
   }
 
+  void addTimeSlot(TimeSlotModel item) {
+    timeSlots.add(item);
+    _saveTimeSlots();
+  }
+
+  void updateTimeSlot(TimeSlotModel item) {
+    int index = timeSlots.indexWhere((e) => e.id == item.id);
+    if (index != -1) {
+      timeSlots[index] = item;
+      _saveTimeSlots();
+    }
+  }
+
+  void deleteTimeSlot(String id) {
+    timeSlots.removeWhere((e) => e.id == id);
+    _saveTimeSlots();
+    
+    // 選項：刪除時段後，是否要從所有餐廳中移除該時段ID？
+    // 為了資料乾淨，建議移除
+    for (var r in restaurants) {
+      if (r.timeSlotIds.contains(id)) {
+        r.timeSlotIds.remove(id);
+      }
+    }
+    _saveRestaurants();
+  }
+
   // 這次新增的：更新餐廳
   void updateRestaurant(RestaurantModel item) {
     int index = restaurants.indexWhere((e) => e.id == item.id);

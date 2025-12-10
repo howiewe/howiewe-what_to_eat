@@ -1,6 +1,7 @@
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
-import 'package:image_picker/image_picker.dart'; // 圖片選擇器
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/services/database_service.dart';
 import '../../data/models/restaurant_model.dart';
@@ -8,20 +9,60 @@ import '../../data/models/restaurant_model.dart';
 class SettingsController extends GetxController {
   final db = Get.find<DatabaseService>();
   final _picker = ImagePicker();
-
+  
   // --- 表單控制變數 ---
   final nameController = TextEditingController();
   final categoryController = TextEditingController();
   final contactController = TextEditingController();
+  
+  // 用來追蹤類別輸入框的文字 (做智慧過濾用)
+  final searchText = "".obs; 
 
-  // 圖片路徑 (Observable)
-  final menuImagePath = RxnString();
-
+  // 圖片路徑
+  final menuImagePath = RxnString(); 
+  
   // 勾選狀態
   final selectedLocationIds = <String>{}.obs;
   final selectedTimeSlotIds = <String>{}.obs;
 
   String? _editingId;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // 監聽類別輸入框，當文字改變時更新 searchText
+    categoryController.addListener(() {
+      searchText.value = categoryController.text;
+    });
+  }
+
+  // --- 計算屬性：過濾後的類別列表 ---
+  List<String> get filteredCategories {
+    // 1. 拿到所有不重複類別
+    final allCats = db.restaurants
+        .map((e) => e.category)
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList();
+    allCats.sort();
+
+    // 2. 如果沒輸入文字，回傳全部
+    if (searchText.value.isEmpty) {
+      return allCats;
+    }
+
+    // 3. 有輸入文字，做模糊比對
+    return allCats.where((cat) => cat.contains(searchText.value)).toList();
+  }
+
+  // --- 點擊標籤填入 ---
+  void setCategoryText(String text) {
+    categoryController.text = text;
+    // 游標移動到最後
+    categoryController.selection = TextSelection.fromPosition(
+      TextPosition(offset: text.length),
+    );
+  }
 
   // --- 選擇圖片 ---
   Future<void> pickImage() async {
@@ -45,20 +86,25 @@ class SettingsController extends GetxController {
     if (existingItem != null) {
       _editingId = existingItem.id;
       nameController.text = existingItem.name;
+      
+      // 設定類別並手動觸發 searchText 更新
       categoryController.text = existingItem.category;
+      searchText.value = existingItem.category; 
+      
       contactController.text = existingItem.contactInfo ?? "";
-      menuImagePath.value = existingItem.menuImage; // 載入舊圖片路徑
+      menuImagePath.value = existingItem.menuImage;
       selectedLocationIds.assignAll(existingItem.locationIds);
       selectedTimeSlotIds.assignAll(existingItem.timeSlotIds);
     } else {
       _editingId = null;
       nameController.clear();
       categoryController.clear();
+      searchText.value = ""; // 清空搜尋文字
       contactController.clear();
-      menuImagePath.value = null; // 清空圖片
+      menuImagePath.value = null;
       selectedLocationIds.clear();
       selectedTimeSlotIds.clear();
-
+      
       if (db.locations.length == 1) {
         selectedLocationIds.add(db.locations.first.id);
       }
@@ -80,10 +126,8 @@ class SettingsController extends GetxController {
       id: _editingId ?? const Uuid().v4(),
       name: nameController.text,
       category: categoryController.text,
-      contactInfo: contactController.text.isEmpty
-          ? null
-          : contactController.text,
-      menuImage: menuImagePath.value, // 儲存圖片路徑
+      contactInfo: contactController.text.isEmpty ? null : contactController.text,
+      menuImage: menuImagePath.value,
       locationIds: selectedLocationIds.toList(),
       timeSlotIds: selectedTimeSlotIds.toList(),
     );
@@ -101,7 +145,7 @@ class SettingsController extends GetxController {
   void deleteItem(String id) {
     db.deleteRestaurant(id);
   }
-
+  
   void toggleLocation(String id) {
     if (selectedLocationIds.contains(id)) {
       selectedLocationIds.remove(id);

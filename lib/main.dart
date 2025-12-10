@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart'; // 讓你看得懂 Scaffold, Text, Icon...
 import 'package:get/get.dart'; // 讓你看得懂 Get, GetMaterialApp
-import 'package:what_to_eat/modules/home/home_view.dart';
+import 'modules/home/home_view.dart';
 import 'data/services/database_service.dart'; // 讓你看得懂 DatabaseService
 
 void main() async {
