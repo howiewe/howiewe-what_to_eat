@@ -1,0 +1,49 @@
+name: Build & Release APK
+
+# 觸發條件：推送到 main 分支時
+on:
+  push:
+    branches: [ "main" ]
+
+# 權限設定：允許 Action 寫入 Releases
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build APK & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      # 重點在這裡：使用 Release Action 來發布 APK
+      - name: Push to Releases
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "build/app/outputs/flutter-apk/app-release.apk"
+          tag: "latest"                 # 固定使用 "latest" 這個標籤
+          name: "Latest Build"          # Release 的標題
+          body: "這是自動建置的最新版本 APK。"
+          allowUpdates: true            # 允許覆蓋舊的 Release
+          removeArtifacts: true         # 上傳新 APK 前，刪除舊的
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}
