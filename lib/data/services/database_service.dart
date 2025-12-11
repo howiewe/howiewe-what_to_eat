@@ -123,6 +123,29 @@ class DatabaseService extends GetxService {
     _saveLocations();
   }
 
+  // --- 新增：更新地區 ---
+  void updateLocation(LocationModel item) {
+    int index = locations.indexWhere((e) => e.id == item.id);
+    if (index != -1) {
+      locations[index] = item;
+      _saveLocations();
+    }
+  }
+
+  // --- 新增：刪除地區 ---
+  void deleteLocation(String id) {
+    locations.removeWhere((e) => e.id == id);
+    _saveLocations();
+
+    // 清理關聯：從所有餐廳中移除這個地區 ID
+    for (var r in restaurants) {
+      if (r.locationIds.contains(id)) {
+        r.locationIds.remove(id);
+      }
+    }
+    _saveRestaurants();
+  }
+
   void addRestaurant(RestaurantModel item) {
     restaurants.add(item);
     _saveRestaurants();

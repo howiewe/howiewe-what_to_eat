@@ -1,4 +1,4 @@
-import 'dart:io'; // 用於顯示手機儲存的圖片
+import 'dart:io'; 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'home_controller.dart';
@@ -11,25 +11,23 @@ class HomeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 綁定 Controller
     final controller = Get.put(HomeController());
 
     return Scaffold(
-      // 隱藏 AppBar，用 Stack + SafeArea 自己排版
       body: Stack(
         children: [
-          // 1. 底層：可滑動內容 (歷史紀錄在下方)
+          // 1. 主內容
           _buildScrollableContent(context, controller),
-
-          // 2. 頂層：懸浮操作列 (Floating Row)
+          
+          // 2. 懸浮操作列
           Positioned(
             left: 20,
             right: 20,
             bottom: 30,
             child: _buildFloatingControlRow(context, controller),
           ),
-
-          // 3. 頂部工具列 (設定按鈕)
+          
+          // 3. 設定按鈕
           Positioned(
             top: MediaQuery.of(context).padding.top + 10,
             right: 20,
@@ -37,33 +35,57 @@ class HomeView extends StatelessWidget {
               icon: const Icon(Icons.settings),
               tooltip: "資料管理",
               onPressed: () {
-                // 跳轉到設定頁面
                 Get.to(() => const SettingsHubView());
               },
             ),
           ),
+
+          // 4. 【新增】自訂通知橫幅 (取代 Snackbar)
+          Obx(() => AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            // 如果 showResetBanner 為 true，位置在上方；否則藏在螢幕外
+            top: controller.showResetBanner.value ? MediaQuery.of(context).padding.top + 10 : -100,
+            left: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.refresh, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "一輪結束！名單已重置。",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )),
         ],
       ),
     );
   }
 
-  Widget _buildScrollableContent(
-    BuildContext context,
-    HomeController controller,
-  ) {
+  Widget _buildScrollableContent(BuildContext context, HomeController controller) {
     return CustomScrollView(
       slivers: [
-        // 上方留白，把卡片往下推到螢幕中間偏上
         SliverToBoxAdapter(
           child: SizedBox(height: MediaQuery.of(context).size.height * 0.15),
         ),
-
-        // --- 核心卡片區域 ---
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Obx(() {
-              // 根據狀態顯示不同內容
               if (controller.isRolling.value) {
                 return _buildCard(
                   context,
@@ -77,8 +99,6 @@ class HomeView extends StatelessWidget {
             }),
           ),
         ),
-
-        // --- 歷史紀錄標題 ---
         const SliverPadding(
           padding: EdgeInsets.fromLTRB(24, 40, 24, 10),
           sliver: SliverToBoxAdapter(
@@ -92,8 +112,6 @@ class HomeView extends StatelessWidget {
             ),
           ),
         ),
-
-        // --- 歷史紀錄列表 ---
         Obx(() {
           final history = Get.find<DatabaseService>().history;
           if (history.isEmpty) {
@@ -113,21 +131,18 @@ class HomeView extends StatelessWidget {
               return ListTile(
                 leading: const Icon(Icons.history, size: 20),
                 title: Text(item.restaurantName),
-                subtitle: Text(item.timestamp.substring(0, 10)), // 簡單顯示日期
+                subtitle: Text(item.timestamp.substring(0, 10)),
                 dense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 24),
               );
             }, childCount: history.length),
           );
         }),
-
-        // 底部留白，避免內容被懸浮按鈕擋住
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ],
     );
   }
 
-  // --- 元件：初始卡片 ---
   Widget _buildStartCard(BuildContext context, HomeController controller) {
     return _buildCard(
       context,
@@ -140,9 +155,7 @@ class HomeView extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             "根據下方設定，幫你決定！",
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
           ),
           const SizedBox(height: 30),
           FilledButton.icon(
@@ -159,10 +172,8 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- 元件：結果卡片 (含菜單邏輯) ---
   Widget _buildResultCard(BuildContext context, HomeController controller) {
     final result = controller.currentResult.value!;
-    // 檢查是否有菜單圖片
     final hasMenu = result.menuImage != null && result.menuImage!.isNotEmpty;
 
     return _buildCard(
@@ -172,16 +183,12 @@ class HomeView extends StatelessWidget {
         children: [
           Text(
             "今天吃這個！",
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey),
           ),
           const SizedBox(height: 10),
           Text(
             result.name,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 10),
@@ -189,28 +196,22 @@ class HomeView extends StatelessWidget {
 
           const SizedBox(height: 25),
 
-          // --- UX 核心邏輯 ---
           if (hasMenu)
             FilledButton.icon(
               onPressed: () => _showMenuDialog(context, result, controller),
               icon: const Icon(Icons.menu_book),
               label: const Text("查看菜單"),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 textStyle: const TextStyle(fontSize: 18),
                 backgroundColor: Colors.orange,
               ),
             )
           else
-            // 如果沒菜單，直接顯示操作按鈕
             _buildActionButtons(result, controller),
 
           const SizedBox(height: 20),
 
-          // 如果有菜單，顯示一個較小的「重抽」文字按鈕在下方
           if (hasMenu)
             TextButton.icon(
               onPressed: controller.startRoll,
@@ -223,47 +224,39 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- 沒菜單時的標準按鈕列 ---
-  Widget _buildActionButtons(
-    RestaurantModel result,
-    HomeController controller,
-  ) {
-    // 預先判斷類型
-    final hasContact =
-        result.contactInfo != null && result.contactInfo!.isNotEmpty;
+  Widget _buildActionButtons(RestaurantModel result, HomeController controller) {
+    final hasContact = result.contactInfo != null && result.contactInfo!.isNotEmpty;
     final isUrl = hasContact ? controller.isUrl(result.contactInfo!) : false;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        // 重抽按鈕
         IconButton.filledTonal(
           onPressed: controller.startRoll,
           icon: const Icon(Icons.refresh),
           tooltip: "重抽",
         ),
 
-        // 聯絡按鈕 (根據類型變化圖示)
-        if (hasContact)
-          IconButton.filled(
-            onPressed: () => controller.launchContactInfo(result.contactInfo!),
-            // 如果是網址顯示地球，否則顯示電話
-            icon: Icon(isUrl ? Icons.public : Icons.call),
-            // 顏色區分：網址用藍色調，電話用綠色調
-            style: IconButton.styleFrom(
-              backgroundColor: isUrl ? Colors.blue : Colors.green,
-            ),
-            tooltip: isUrl ? "開啟網頁" : "撥打電話",
+        // 決定按鈕
+        IconButton.filled(
+          onPressed: () {
+            if (hasContact) {
+              controller.launchContactInfo(result.contactInfo!); 
+            } else {
+              controller.confirmSelection(); 
+            }
+          },
+          icon: Icon(hasContact ? (isUrl ? Icons.public : Icons.call) : Icons.check),
+          style: IconButton.styleFrom(
+            backgroundColor: hasContact ? (isUrl ? Colors.blue : Colors.green) : Colors.grey,
           ),
+          tooltip: hasContact ? (isUrl ? "開啟網頁" : "撥打電話") : "決定吃這家",
+        ),
       ],
     );
   }
 
-  // --- 菜單全螢幕展示 Dialog ---
   void _showMenuDialog(BuildContext context, RestaurantModel result, HomeController controller) {
-    // *注意：這裡記得要在參數加上 HomeController controller 以便呼叫邏輯*
-    
-    // 預先判斷
     final hasContact = result.contactInfo != null && result.contactInfo!.isNotEmpty;
     final isUrl = hasContact ? controller.isUrl(result.contactInfo!) : false;
 
@@ -277,14 +270,12 @@ class HomeView extends StatelessWidget {
         ),
         body: Stack(
           children: [
-            // 1. 圖片
             Center(
               child: InteractiveViewer(
                 child: Image.file(File(result.menuImage!)),
               ),
             ),
             
-            // 2. 下方懸浮訂購鈕
             Positioned(
               left: 20,
               right: 20,
@@ -295,26 +286,23 @@ class HomeView extends StatelessWidget {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () {
-                          // 如果有聯絡資訊，執行動作
+                          // 先關閉 Dialog，再執行後續
+                          Get.back();
+                          
                           if (hasContact) {
                             controller.launchContactInfo(result.contactInfo!);
                           } else {
-                            Get.snackbar("提示", "這家店沒有紀錄聯絡資訊喔");
+                            controller.confirmSelection();
                           }
-                          // 根據需求決定要不要關閉菜單，通常打電話會跳出 App，所以關不關都可以
-                          // Get.back(); 
                         },
-                        // 動態更換圖示
-                        icon: Icon(isUrl ? Icons.public : Icons.call), 
-                        // 動態更換文字
+                        icon: Icon(hasContact ? (isUrl ? Icons.public : Icons.call) : Icons.check),
                         label: Text(
                           !hasContact 
-                              ? "決定這家 (無聯絡資訊)" 
+                              ? "決定吃這家 (無聯絡資訊)" 
                               : (isUrl ? "前往訂購網頁" : "撥打電話訂購")
                         ),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          // 動態更換顏色
                           backgroundColor: !hasContact 
                               ? Colors.grey 
                               : (isUrl ? Colors.blue : Colors.green),
@@ -332,15 +320,13 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- 共用卡片樣式 ---
   Widget _buildCard(BuildContext context, {required Widget child}) {
     return Container(
-      height: 350, // 稍微加高一點以容納按鈕
+      height: 350,
       width: double.infinity,
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(32),
-        // 使用 withValues 修正 withOpacity 警告
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -353,18 +339,11 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- 核心需求：底部懸浮控制列 ---
-  Widget _buildFloatingControlRow(
-    BuildContext context,
-    HomeController controller,
-  ) {
+  Widget _buildFloatingControlRow(BuildContext context, HomeController controller) {
     return Container(
       height: 70,
       decoration: BoxDecoration(
-        // 使用 withValues 修正警告
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.95),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(50),
         boxShadow: [
           BoxShadow(
@@ -377,7 +356,6 @@ class HomeView extends StatelessWidget {
       child: Obx(
         () => Row(
           children: [
-            // 1. 地區選擇
             Expanded(
               child: _buildControlItem(
                 context,
@@ -386,14 +364,7 @@ class HomeView extends StatelessWidget {
                 onTap: () => _showLocationPicker(context, controller),
               ),
             ),
-            // 分隔線
-            VerticalDivider(
-              indent: 15,
-              endIndent: 15,
-              color: Theme.of(context).dividerColor,
-            ),
-
-            // 2. 時段選擇
+            VerticalDivider(indent: 15, endIndent: 15, color: Theme.of(context).dividerColor),
             Expanded(
               child: _buildControlItem(
                 context,
@@ -402,20 +373,11 @@ class HomeView extends StatelessWidget {
                 onTap: () => _showTimePicker(context, controller),
               ),
             ),
-            // 分隔線
-            VerticalDivider(
-              indent: 15,
-              endIndent: 15,
-              color: Theme.of(context).dividerColor,
-            ),
-
-            // 3. 模式選擇
+            VerticalDivider(indent: 15, endIndent: 15, color: Theme.of(context).dividerColor),
             Expanded(
               child: _buildControlItem(
                 context,
-                icon: controller.isRandomMode.value
-                    ? Icons.shuffle
-                    : Icons.category_outlined,
+                icon: controller.isRandomMode.value ? Icons.shuffle : Icons.category_outlined,
                 label: controller.isRandomMode.value ? "隨機" : "引導",
                 onTap: controller.toggleMode,
               ),
@@ -426,12 +388,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  Widget _buildControlItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildControlItem(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(50),
@@ -451,7 +408,6 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- BottomSheet: 地區選擇器 ---
   void _showLocationPicker(BuildContext context, HomeController controller) {
     Get.bottomSheet(
       Container(
@@ -463,16 +419,11 @@ class HomeView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              "選擇地區",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            const Text("選擇地區", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            // 使用 Obx 確保列表更新 (如果 settings 改了地區)
             Obx(
               () => Column(
-                children: controller.db.locations
-                    .map(
+                children: controller.db.locations.map(
                       (loc) => ListTile(
                         title: Text(loc.name),
                         leading: loc.id == controller.currentLocation.value?.id
@@ -483,8 +434,7 @@ class HomeView extends StatelessWidget {
                           Get.back();
                         },
                       ),
-                    )
-                    .toList(),
+                    ).toList(),
               ),
             ),
           ],
@@ -493,7 +443,6 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- BottomSheet: 時段選擇器 ---
   void _showTimePicker(BuildContext context, HomeController controller) {
     Get.bottomSheet(
       Container(
@@ -506,20 +455,15 @@ class HomeView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "選擇時段",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text("選擇時段", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               Obx(
                 () => Column(
-                  children: controller.db.timeSlots
-                      .map(
+                  children: controller.db.timeSlots.map(
                         (slot) => ListTile(
                           title: Text(slot.name),
                           subtitle: Text("${slot.startTime} - ${slot.endTime}"),
-                          leading:
-                              slot.id == controller.currentTimeSlot.value?.id
+                          leading: slot.id == controller.currentTimeSlot.value?.id
                               ? const Icon(Icons.check, color: Colors.green)
                               : null,
                           onTap: () {
@@ -527,8 +471,7 @@ class HomeView extends StatelessWidget {
                             Get.back();
                           },
                         ),
-                      )
-                      .toList(),
+                      ).toList(),
                 ),
               ),
             ],

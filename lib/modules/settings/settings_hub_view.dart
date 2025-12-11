@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'settings_view.dart';
 import 'timeslot_view.dart';
+import 'location_view.dart'; // 記得引入這個
 
 class SettingsHubView extends StatelessWidget {
   const SettingsHubView({super.key});
@@ -16,7 +17,7 @@ class SettingsHubView extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 餐廳管理卡片
+          // 1. 餐廳管理卡片
           _buildMenuCard(
             context,
             icon: Icons.restaurant,
@@ -28,7 +29,7 @@ class SettingsHubView extends StatelessWidget {
           
           const SizedBox(height: 16),
           
-          // 時段管理卡片
+          // 2. 時段管理卡片 (移到第二個)
           _buildMenuCard(
             context,
             icon: Icons.access_time,
@@ -36,6 +37,18 @@ class SettingsHubView extends StatelessWidget {
             subtitle: "自訂早餐、午餐或飲料時段",
             color: Colors.blue,
             onTap: () => Get.to(() => const TimeSlotView()),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 3. 地區設定 (移到最後面)
+          _buildMenuCard(
+            context,
+            icon: Icons.location_on,
+            title: "地區設定",
+            subtitle: "新增家、公司或其他活動範圍",
+            color: Colors.green,
+            onTap: () => Get.to(() => const LocationView()),
           ),
         ],
       ),
@@ -62,6 +75,7 @@ class SettingsHubView extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
+                  // 使用 withValues 修正警告
                   color: color.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
