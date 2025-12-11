@@ -1,11 +1,9 @@
 name: Build & Release APK
 
-# 觸發條件：推送到 main 分支時
 on:
   push:
     branches: [ "main" ]
 
-# 權限設定：允許 Action 寫入 Releases
 permissions:
   contents: write
 
@@ -29,21 +27,36 @@ jobs:
         with:
           channel: 'stable'
 
+      # 1. [新增] 產生時間變數 (設定為台北時間)
+      - name: Get Current Date
+        id: date
+        run: |
+          # 設定時區為台北，並格式化時間
+          export TZ='Asia/Taipei'
+          echo "date=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
+          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
       - name: Get Dependencies
         run: flutter pub get
 
       - name: Build APK
         run: flutter build apk --release --no-tree-shake-icons
 
-      # 重點在這裡：使用 Release Action 來發布 APK
       - name: Push to Releases
         uses: ncipollo/release-action@v1
         with:
           artifacts: "build/app/outputs/flutter-apk/app-release.apk"
-          tag: "latest"                 # 固定使用 "latest" 這個標籤
-          name: "Latest Build"          # Release 的標題
-          body: "這是自動建置的最新版本 APK。"
-          allowUpdates: true            # 允許覆蓋舊的 Release
-          removeArtifacts: true         # 上傳新 APK 前，刪除舊的
+          tag: "latest"
+          # 2. [修改] 標題直接顯示日期與時間
+          name: "Build: ${{ steps.date.outputs.date }} (TW)"
+          # 3. [修改] 內容加入 Commit Hash 以便核對
+          body: |
+            ✅ 自動打包完成
+            📅 建置時間 (台北): ${{ steps.date.outputs.date }}
+            #️⃣ Commit: ${{ steps.date.outputs.short_sha }}
+            
+            直接下載下方的 `app-release.apk` 即可安裝。
+          allowUpdates: true
+          removeArtifacts: true
           replacesArtifacts: true
           token: ${{ secrets.GITHUB_TOKEN }}
