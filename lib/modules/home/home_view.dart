@@ -16,10 +16,10 @@ class HomeView extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. 主內容
+          // 1. 主內容 (包含結果卡片)
           _buildScrollableContent(context, controller),
           
-          // 2. 懸浮操作列
+          // 2. 懸浮操作列 (底部圓角選單)
           Positioned(
             left: 20,
             right: 20,
@@ -27,7 +27,7 @@ class HomeView extends StatelessWidget {
             child: _buildFloatingControlRow(context, controller),
           ),
           
-          // 3. 設定按鈕
+          // 3. 設定按鈕 (右上角)
           Positioned(
             top: MediaQuery.of(context).padding.top + 10,
             right: 20,
@@ -40,11 +40,10 @@ class HomeView extends StatelessWidget {
             ),
           ),
 
-          // 4. 【新增】自訂通知橫幅 (取代 Snackbar)
+          // 4. 自訂通知橫幅 (一輪結束提示)
           Obx(() => AnimatedPositioned(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
-            // 如果 showResetBanner 為 true，位置在上方；否則藏在螢幕外
             top: controller.showResetBanner.value ? MediaQuery.of(context).padding.top + 10 : -100,
             left: 20,
             right: 20,
@@ -92,8 +91,10 @@ class HomeView extends StatelessWidget {
                   child: const Center(child: CircularProgressIndicator()),
                 );
               } else if (controller.currentResult.value != null) {
+                // 顯示結果
                 return _buildResultCard(context, controller);
               } else {
+                // 顯示開始畫面
                 return _buildStartCard(context, controller);
               }
             }),
@@ -112,6 +113,7 @@ class HomeView extends StatelessWidget {
             ),
           ),
         ),
+        // 歷史紀錄列表
         Obx(() {
           final history = Get.find<DatabaseService>().history;
           if (history.isEmpty) {
@@ -172,9 +174,37 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  // --- [修改重點] 統一介面邏輯 ---
   Widget _buildResultCard(BuildContext context, HomeController controller) {
     final result = controller.currentResult.value!;
+    
+    // 判斷狀態
     final hasMenu = result.menuImage != null && result.menuImage!.isNotEmpty;
+    final hasContact = result.contactInfo != null && result.contactInfo!.isNotEmpty;
+    final isUrl = hasContact ? controller.isUrl(result.contactInfo!) : false;
+
+    // 決定按鈕顯示的文字與圖示
+    String primaryLabel;
+    IconData primaryIcon;
+    Color primaryColor;
+    VoidCallback primaryAction;
+
+    if (hasMenu) {
+      primaryLabel = "查看菜單";
+      primaryIcon = Icons.menu_book;
+      primaryColor = Colors.orange;
+      primaryAction = () => _showMenuDialog(context, result, controller);
+    } else if (hasContact) {
+      primaryLabel = "前往訂購"; // 四個字
+      primaryIcon = isUrl ? Icons.public : Icons.call;
+      primaryColor = isUrl ? Colors.blue : Colors.green;
+      primaryAction = () => controller.launchContactInfo(result.contactInfo!);
+    } else {
+      primaryLabel = "決定這家"; // 四個字
+      primaryIcon = Icons.check_circle;
+      primaryColor = Colors.green;
+      primaryAction = controller.confirmSelection;
+    }
 
     return _buildCard(
       context,
@@ -196,63 +226,32 @@ class HomeView extends StatelessWidget {
 
           const SizedBox(height: 25),
 
-          if (hasMenu)
-            FilledButton.icon(
-              onPressed: () => _showMenuDialog(context, result, controller),
-              icon: const Icon(Icons.menu_book),
-              label: const Text("查看菜單"),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                textStyle: const TextStyle(fontSize: 18),
-                backgroundColor: Colors.orange,
-              ),
-            )
-          else
-            _buildActionButtons(result, controller),
+          // 1. 統一的主按鈕 (根據狀態變換)
+          FilledButton.icon(
+            onPressed: primaryAction,
+            icon: Icon(primaryIcon),
+            label: Text(primaryLabel),
+            style: FilledButton.styleFrom(
+              backgroundColor: primaryColor,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              textStyle: const TextStyle(fontSize: 18),
+            ),
+          ),
 
           const SizedBox(height: 20),
 
-          if (hasMenu)
-            TextButton.icon(
-              onPressed: controller.startRoll,
-              icon: const Icon(Icons.refresh),
-              label: const Text("不想吃，重抽"),
-              style: TextButton.styleFrom(foregroundColor: Colors.grey),
+          // 2. 統一的重抽按鈕
+          TextButton.icon(
+            onPressed: controller.startRoll,
+            icon: const Icon(Icons.refresh),
+            label: const Text("不想吃，重抽"),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildActionButtons(RestaurantModel result, HomeController controller) {
-    final hasContact = result.contactInfo != null && result.contactInfo!.isNotEmpty;
-    final isUrl = hasContact ? controller.isUrl(result.contactInfo!) : false;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        IconButton.filledTonal(
-          onPressed: controller.startRoll,
-          icon: const Icon(Icons.refresh),
-          tooltip: "重抽",
-        ),
-
-        // 決定按鈕
-        IconButton.filled(
-          onPressed: () {
-            if (hasContact) {
-              controller.launchContactInfo(result.contactInfo!); 
-            } else {
-              controller.confirmSelection(); 
-            }
-          },
-          icon: Icon(hasContact ? (isUrl ? Icons.public : Icons.call) : Icons.check),
-          style: IconButton.styleFrom(
-            backgroundColor: hasContact ? (isUrl ? Colors.blue : Colors.green) : Colors.grey,
-          ),
-          tooltip: hasContact ? (isUrl ? "開啟網頁" : "撥打電話") : "決定吃這家",
-        ),
-      ],
     );
   }
 
@@ -268,44 +267,71 @@ class HomeView extends StatelessWidget {
           iconTheme: const IconThemeData(color: Colors.white),
           title: Text(result.name, style: const TextStyle(color: Colors.white)),
         ),
-        body: Stack(
+        // [修改重點] 改用 Column 垂直排列，確保按鈕不會蓋住圖片
+        body: Column(
           children: [
-            Center(
-              child: InteractiveViewer(
-                child: Image.file(File(result.menuImage!)),
+            // 1. 上方圖片區 (佔據剩餘空間)
+            Expanded(
+              child: Center(
+                // 設定 3:4 比例
+                child: AspectRatio(
+                  aspectRatio: 3 / 4, 
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[900], // 深色背景，避免圖片沒填滿時太突兀
+                      borderRadius: BorderRadius.circular(16), // 圓角修飾
+                    ),
+                    // 裁切圓角，讓圖片不會超出
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: InteractiveViewer(
+                        // 允許縮放查看細節
+                        minScale: 1.0,
+                        maxScale: 5.0,
+                        child: Image.file(
+                          File(result.menuImage!),
+                          // 使用 contain 確保整張菜單都看得到，不會被切掉
+                          // 如果你希望填滿整個 3:4 框框(即使切到邊邊)，可以改成 BoxFit.cover
+                          fit: BoxFit.contain, 
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
             
-            Positioned(
-              left: 20,
-              right: 20,
-              bottom: 40,
+            // 2. 下方按鈕區 (固定在底部，背景不透明)
+            Container(
+              padding: const EdgeInsets.all(20),
+              color: Colors.black, // 確保背景是黑的，與上方區隔
               child: SafeArea(
+                top: false, // 上方不需要 SafeArea，因為已經在 Column 裡
                 child: Row(
                   children: [
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () {
-                          // 先關閉 Dialog，再執行後續
-                          Get.back();
-                          
+                          Get.back(); // 關閉 Dialog
                           if (hasContact) {
                             controller.launchContactInfo(result.contactInfo!);
                           } else {
                             controller.confirmSelection();
                           }
                         },
-                        icon: Icon(hasContact ? (isUrl ? Icons.public : Icons.call) : Icons.check),
+                        // 維持統一的按鈕文字邏輯
                         label: Text(
                           !hasContact 
-                              ? "決定吃這家 (無聯絡資訊)" 
-                              : (isUrl ? "前往訂購網頁" : "撥打電話訂購")
+                              ? "決定這家" 
+                              : "前往訂購"
                         ),
+                        icon: Icon(hasContact ? (isUrl ? Icons.public : Icons.call) : Icons.check_circle),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: !hasContact 
-                              ? Colors.grey 
+                              ? Colors.green 
                               : (isUrl ? Colors.blue : Colors.green),
+                          textStyle: const TextStyle(fontSize: 18),
                         ),
                       ),
                     ),
@@ -339,6 +365,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  // --- 底部懸浮操作列 ---
   Widget _buildFloatingControlRow(BuildContext context, HomeController controller) {
     return Container(
       height: 70,

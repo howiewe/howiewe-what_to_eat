@@ -16,8 +16,6 @@ class HomeController extends GetxController {
   final isRandomMode = false.obs;
   final currentResult = Rxn<RestaurantModel>();
   final isRolling = false.obs;
-
-  // --- 新增：控制頂部提示橫幅 ---
   final showResetBanner = false.obs;
 
   // --- 邏輯控制變數 ---
@@ -31,8 +29,40 @@ class HomeController extends GetxController {
       currentLocation.value = db.locations.first;
     }
     detectTimeSlot();
+
+    ever(db.timeSlots, (List<TimeSlotModel> updatedList) {
+      // 如果當前沒選時段，或是資料庫被清空，就不處理
+      if (currentTimeSlot.value == null || updatedList.isEmpty) return;
+
+      // 在新的列表中，尋找目前正在使用的時段 ID
+      try {
+        final updatedSlot = updatedList.firstWhere(
+          (slot) => slot.id == currentTimeSlot.value!.id
+        );
+
+        // A. 更新手中的資料 (這樣 UI 顯示的名字才會變)
+        currentTimeSlot.value = updatedSlot;
+
+        // B. 重新檢查是否強制隨機
+        if (updatedSlot.skipCategory) {
+          // 如果變成了強制隨機，立刻切換模式
+          isRandomMode.value = true;
+        } 
+        
+        // C. 為了安全起見，重置當前的一輪狀態 (避免分類資料不一致)
+        _resetSession();
+        
+      } catch (e) {
+        // 如果找不到 ID (代表目前的時段被刪除了)，則重新偵測適合的時段
+        detectTimeSlot();
+      }
+    });
+
   }
 
+  
+
+  // 1. [修正] 自動偵測時段
   void detectTimeSlot() {
     final now = DateTime.now();
     String nowStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
@@ -46,29 +76,51 @@ class HomeController extends GetxController {
           return nowStr.compareTo(slot.startTime!) >= 0 || nowStr.compareTo(slot.endTime!) <= 0;
         }
       });
-      currentTimeSlot.value = match;
-      _resetSession(); 
-
-      if (match.skipCategory) {
-        isRandomMode.value = true;
-      }
+      
+      // 使用統一的方法切換，避免邏輯重複
+      changeTimeSlot(match);
+      
     } catch (e) {
-      if (db.timeSlots.isNotEmpty) currentTimeSlot.value = db.timeSlots.first;
+      if (db.timeSlots.isNotEmpty) {
+        // 沒抓到時間就預設第一個，也走統一流程
+        changeTimeSlot(db.timeSlots.first);
+      }
     }
   }
 
-  void toggleMode() {
-    isRandomMode.toggle();
+  // 2. [修正] 手動切換時段
+  void changeTimeSlot(TimeSlotModel slot) {
+    currentTimeSlot.value = slot;
     _resetSession();
+
+    // 關鍵修正：切換時段時，檢查是否為強制隨機
+    if (slot.skipCategory) {
+      isRandomMode.value = true;
+    } else {
+      // 這裡不一定要設回 false，因為使用者可能在午餐也想用隨機
+      // 保持原本的 isRandomMode 狀態即可
+    }
   }
 
   void changeLocation(LocationModel loc) {
     currentLocation.value = loc;
     _resetSession();
   }
-  
-  void changeTimeSlot(TimeSlotModel slot) {
-    currentTimeSlot.value = slot;
+
+  // 3. [修正] 切換模式按鈕
+  void toggleMode() {
+    // 如果當前時段是「強制隨機」，且現在已經是隨機模式，則禁止切換回引導
+    if (currentTimeSlot.value?.skipCategory == true && isRandomMode.value) {
+      Get.snackbar(
+        "模式鎖定", 
+        "此時段設定為強制隨機 (例如飲料/下午茶)，無法使用分類引導。",
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(20),
+      );
+      return; 
+    }
+    
+    isRandomMode.toggle();
     _resetSession();
   }
 
@@ -76,20 +128,14 @@ class HomeController extends GetxController {
     _shownRestaurantIds.clear();
     _selectedCategory = null; 
     currentResult.value = null; 
-    showResetBanner.value = false; // 重置時也隱藏橫幅
+    showResetBanner.value = false;
   }
 
-  // --- 觸發一輪結束的提示 ---
   void _triggerResetMessage() {
-    // 顯示橫幅
     showResetBanner.value = true;
-    
-    // 3秒後自動消失
     Future.delayed(const Duration(seconds: 3), () {
       showResetBanner.value = false;
     });
-
-    // 重置邏輯
     _shownRestaurantIds.clear(); 
     _selectedCategory = null;    
     currentResult.value = null;  
@@ -97,7 +143,6 @@ class HomeController extends GetxController {
   }
 
   Future<void> startRoll() async {
-    // 防止重複點擊
     if (isRolling.value) return; 
     if (currentLocation.value == null || currentTimeSlot.value == null) return;
 
@@ -112,6 +157,7 @@ class HomeController extends GetxController {
       return;
     }
 
+    // 這裡的邏輯原本是沒問題的，但配合上面的 changeTimeSlot 修正後 UI 會更一致
     if (isRandomMode.value || currentTimeSlot.value!.skipCategory) {
       _rollFromList(baseCandidates);
     } else {
@@ -141,13 +187,11 @@ class HomeController extends GetxController {
     var available = candidates.where((r) => !_shownRestaurantIds.contains(r.id)).toList();
 
     if (available.isEmpty) {
-      // 改用自訂方法，不再呼叫 Get.snackbar
       _triggerResetMessage();
       return; 
     }
 
     isRolling.value = true;
-    // 開始轉之前，先隱藏提示 (如果有的話)
     showResetBanner.value = false;
     currentResult.value = null;
     
@@ -183,7 +227,6 @@ class HomeController extends GetxController {
                 return ActionChip(
                   label: Text(cat),
                   onPressed: () {
-                    // 這裡的 Get.back 絕對安全，因為沒有 Snackbar 干擾
                     Get.back();
                     _selectedCategory = cat;
                     startRoll(); 
@@ -197,8 +240,9 @@ class HomeController extends GetxController {
               child: TextButton(
                 onPressed: () {
                   Get.back();
-                  isRandomMode.value = true; 
-                  startRoll();
+                  // 這裡我們暫時開啟隨機模式，但只針對這一次
+                  // 或者直接呼叫 _rollFromList(allCandidates)
+                  _rollFromList(allCandidates);
                 },
                 child: const Text("都可以，直接抽！"),
               ),
@@ -213,7 +257,7 @@ class HomeController extends GetxController {
   void confirmSelection() {
     if (currentResult.value != null) {
       db.addToHistory(currentResult.value!.name);
-      // 清空結果，UI 會自動回到 StartCard
+      // 確認選擇後，重置 Session，避免下次誤判一輪結束
       _resetSession(); 
       isRolling.value = false;
     }
@@ -224,7 +268,6 @@ class HomeController extends GetxController {
   }
 
   Future<void> launchContactInfo(String contact) async {
-    // 1. 記錄並重置 UI (這行會把 currentResult 變 null)
     confirmSelection();
 
     if (contact.isEmpty) return;
