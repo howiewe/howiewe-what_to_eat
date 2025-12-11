@@ -214,7 +214,7 @@ class HomeController extends GetxController {
     if (currentResult.value != null) {
       db.addToHistory(currentResult.value!.name);
       // 清空結果，UI 會自動回到 StartCard
-      currentResult.value = null; 
+      _resetSession(); 
       isRolling.value = false;
     }
   }
