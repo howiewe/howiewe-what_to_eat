@@ -7,6 +7,7 @@ import '../../data/services/database_service.dart';
 import '../../data/models/location_model.dart';
 import '../../data/models/time_slot_model.dart';
 import '../../data/models/restaurant_model.dart';
+import 'dart:async';
 
 class HomeController extends GetxController {
   final db = Get.find<DatabaseService>();
@@ -18,6 +19,7 @@ class HomeController extends GetxController {
   final currentResult = Rxn<RestaurantModel>();
   final isRolling = false.obs;
   final showResetBanner = false.obs;
+  final rollingDisplay = "".obs;
 
   // --- 邏輯控制變數 ---
   final _shownRestaurantIds = <String>{};
@@ -183,29 +185,60 @@ class HomeController extends GetxController {
   }
 
   Future<void> _rollFromList(List<RestaurantModel> candidates) async {
-    var available = candidates
-        .where((r) => !_shownRestaurantIds.contains(r.id))
-        .toList();
+    // 1. 過濾已顯示過的
+    var available = candidates.where((r) => !_shownRestaurantIds.contains(r.id)).toList();
 
     if (available.isEmpty) {
       _triggerResetMessage();
-      return;
+      return; 
     }
 
+    // [修正重點] 先隨機選一個名字填入，確保畫面一出來就有字，而不是空字串
+    final firstItem = available[Random().nextInt(available.length)];
+    rollingDisplay.value = firstItem.name;
+
+    // 設定好文字後，再開啟動畫狀態
     isRolling.value = true;
     showResetBanner.value = false;
     currentResult.value = null;
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    // --- 減速動畫邏輯 ---
+    int totalSteps = 15; 
+    int currentStep = 0;
+    int speed = 100; // 初始速度
 
-    final random = Random();
-    final result = available[random.nextInt(available.length)];
+    Future<void> loop() async {
+      if (currentStep >= totalSteps) {
+        final random = Random();
+        final result = available[random.nextInt(available.length)];
+        
+        currentResult.value = result;
+        isRolling.value = false;
+        _shownRestaurantIds.add(result.id);
+        return;
+      }
 
-    currentResult.value = result;
-    isRolling.value = false;
+      // 這裡繼續隨機跳字
+      final tempItem = available[Random().nextInt(available.length)];
+      rollingDisplay.value = tempItem.name;
 
-    _shownRestaurantIds.add(result.id);
+      // 減速邏輯
+      if (currentStep > 5) speed += 50;  
+      if (currentStep > 10) speed += 100; 
+      if (currentStep > 12) speed += 200; 
+
+      currentStep++;
+      
+      // 等待時間後進入下一次
+      await Future.delayed(Duration(milliseconds: speed));
+      await loop(); 
+    }
+
+    // 啟動迴圈前先等一下，讓使用者看到第一個名字滑入
+    await Future.delayed(const Duration(milliseconds: 100));
+    await loop();
   }
+
 
   void _showCategoryPicker(
     List<String> categories,

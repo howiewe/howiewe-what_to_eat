@@ -17,7 +17,7 @@ class HomeView extends StatelessWidget {
         children: [
           // 1. 主內容 (包含結果卡片)
           _buildScrollableContent(context, controller),
-
+          
           // 2. 懸浮操作列 (底部圓角選單)
           Positioned(
             left: 20,
@@ -25,7 +25,7 @@ class HomeView extends StatelessWidget {
             bottom: 30,
             child: _buildFloatingControlRow(context, controller),
           ),
-
+          
           // 3. 設定按鈕 (右上角)
           Positioned(
             top: MediaQuery.of(context).padding.top + 10,
@@ -40,58 +40,41 @@ class HomeView extends StatelessWidget {
           ),
 
           // 4. 自訂通知橫幅 (一輪結束提示)
-          Obx(
-            () => AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-              top: controller.showResetBanner.value
-                  ? MediaQuery.of(context).padding.top + 10
-                  : -100,
-              left: 20,
-              right: 20,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+          Obx(() => AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            top: controller.showResetBanner.value ? MediaQuery.of(context).padding.top + 10 : -100,
+            left: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.refresh, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "一輪結束！名單已重置。",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.refresh, color: Colors.white),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        "一輪結束！名單已重置。",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ),
+          )),
         ],
       ),
     );
   }
 
-  Widget _buildScrollableContent(
-    BuildContext context,
-    HomeController controller,
-  ) {
+  Widget _buildScrollableContent(BuildContext context, HomeController controller) {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
@@ -102,16 +85,99 @@ class HomeView extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Obx(() {
               if (controller.isRolling.value) {
+                // --- 動畫狀態 ---
                 return _buildCard(
                   context,
-                  child: const Center(child: CircularProgressIndicator()),
+                  child: ClipRect( // 確保文字超出卡片邊界時被切掉
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text("正在決定...", style: TextStyle(color: Colors.grey)),
+                        const SizedBox(height: 25),
+                        
+                        // 動畫區域
+                        Container(
+                          height: 70, 
+                          width: double.infinity,
+                          alignment: Alignment.center,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 100),
+                            
+                            // 保持使用 Stack，讓新舊文字同時存在
+                            layoutBuilder: (currentChild, previousChildren) {
+                              return Stack(
+                                alignment: Alignment.center,
+                                children: <Widget>[
+                                  ...previousChildren,
+                                  if (currentChild != null) currentChild,
+                                ],
+                              );
+                            },
+
+                            // [修正重點] 區分進場與退場的軌跡
+                            transitionBuilder: (Widget child, Animation<double> animation) {
+                              // 1. 定義進場軌跡：從右邊 (1.0) 滑到中間 (0.0)
+                              final inTween = Tween<Offset>(
+                                begin: const Offset(1.0, 0.0), 
+                                end: Offset.zero
+                              );
+
+                              // 2. 定義退場軌跡：從中間 (0.0) 滑到左邊 (-1.0)
+                              // 注意：AnimatedSwitcher 對舊元件是跑「反向動畫」(Value: 1.0 -> 0.0)
+                              // 當 Value=1.0 時 (退場開始)，我們希望它在 Offset.zero (中間)
+                              // 當 Value=0.0 時 (退場結束)，我們希望它在 Offset(-1.0, 0.0) (左邊)
+                              final outTween = Tween<Offset>(
+                                begin: const Offset(-1.0, 0.0), 
+                                end: Offset.zero
+                              );
+
+                              // 3. 判斷這個 child 是「新來的」還是「要走的」
+                              // 透過 Key 來比對 (當前 Controller 的文字 = 新文字)
+                              final isNewChild = child.key == ValueKey<String>(controller.rollingDisplay.value);
+
+                              if (isNewChild) {
+                                // 如果是新文字，跑進場動畫 (右 -> 中)
+                                return SlideTransition(
+                                  position: inTween.animate(animation),
+                                  child: child,
+                                );
+                              } else {
+                                // 如果是舊文字，跑退場動畫 (中 -> 左)
+                                return SlideTransition(
+                                  position: outTween.animate(animation),
+                                  child: child,
+                                );
+                              }
+                            },
+                            
+                            child: Container(
+                              // [重要] 這裡的 Key 必須跟上面判斷邏輯一致
+                              key: ValueKey<String>(controller.rollingDisplay.value),
+                              width: double.infinity, 
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                controller.rollingDisplay.value,
+                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.white 
+                                      : Colors.black87,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               } else if (controller.currentResult.value != null) {
                 // 顯示結果
-                return ResultCard(
-                  result: controller.currentResult.value!,
-                  controller: controller,
-                );
+                return ResultCard(result: controller.currentResult.value!, controller: controller);
               } else {
                 // 顯示開始畫面
                 return _buildStartCard(context, controller);
@@ -176,9 +242,7 @@ class HomeView extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             "根據下方設定，幫你決定！",
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
           ),
           const SizedBox(height: 30),
           FilledButton.icon(
@@ -195,6 +259,10 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  // --- [修改重點] 統一介面邏輯 (備用，如果有 ResultCard 這個 Widget 就不會用到這邊) ---
+  // 因為你已經拆分出 ResultCard，這裡其實只要留 ResultCard 的呼叫即可
+  // 但為了防止你的 result_card.dart 參數有問題，我這裡稍微調整 ResultCard 的呼叫方式
+  
   Widget _buildCard(BuildContext context, {required Widget child}) {
     return Container(
       height: 350,
@@ -215,16 +283,11 @@ class HomeView extends StatelessWidget {
   }
 
   // --- 底部懸浮操作列 ---
-  Widget _buildFloatingControlRow(
-    BuildContext context,
-    HomeController controller,
-  ) {
+  Widget _buildFloatingControlRow(BuildContext context, HomeController controller) {
     return Container(
       height: 70,
       decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.95),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(50),
         boxShadow: [
           BoxShadow(
@@ -245,11 +308,7 @@ class HomeView extends StatelessWidget {
                 onTap: () => _showLocationPicker(context, controller),
               ),
             ),
-            VerticalDivider(
-              indent: 15,
-              endIndent: 15,
-              color: Theme.of(context).dividerColor,
-            ),
+            VerticalDivider(indent: 15, endIndent: 15, color: Theme.of(context).dividerColor),
             Expanded(
               child: _buildControlItem(
                 context,
@@ -258,17 +317,11 @@ class HomeView extends StatelessWidget {
                 onTap: () => _showTimePicker(context, controller),
               ),
             ),
-            VerticalDivider(
-              indent: 15,
-              endIndent: 15,
-              color: Theme.of(context).dividerColor,
-            ),
+            VerticalDivider(indent: 15, endIndent: 15, color: Theme.of(context).dividerColor),
             Expanded(
               child: _buildControlItem(
                 context,
-                icon: controller.isRandomMode.value
-                    ? Icons.shuffle
-                    : Icons.category_outlined,
+                icon: controller.isRandomMode.value ? Icons.shuffle : Icons.category_outlined,
                 label: controller.isRandomMode.value ? "隨機" : "引導",
                 onTap: controller.toggleMode,
               ),
@@ -279,12 +332,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  Widget _buildControlItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildControlItem(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(50),
@@ -315,15 +363,11 @@ class HomeView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              "選擇地區",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            const Text("選擇地區", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             Obx(
               () => Column(
-                children: controller.db.locations
-                    .map(
+                children: controller.db.locations.map(
                       (loc) => ListTile(
                         title: Text(loc.name),
                         leading: loc.id == controller.currentLocation.value?.id
@@ -334,8 +378,7 @@ class HomeView extends StatelessWidget {
                           Get.back();
                         },
                       ),
-                    )
-                    .toList(),
+                    ).toList(),
               ),
             ),
           ],
@@ -356,20 +399,15 @@ class HomeView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "選擇時段",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text("選擇時段", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               Obx(
                 () => Column(
-                  children: controller.db.timeSlots
-                      .map(
+                  children: controller.db.timeSlots.map(
                         (slot) => ListTile(
                           title: Text(slot.name),
                           subtitle: Text("${slot.startTime} - ${slot.endTime}"),
-                          leading:
-                              slot.id == controller.currentTimeSlot.value?.id
+                          leading: slot.id == controller.currentTimeSlot.value?.id
                               ? const Icon(Icons.check, color: Colors.green)
                               : null,
                           onTap: () {
@@ -377,8 +415,7 @@ class HomeView extends StatelessWidget {
                             Get.back();
                           },
                         ),
-                      )
-                      .toList(),
+                      ).toList(),
                 ),
               ),
             ],
