@@ -149,7 +149,12 @@ class TimeSlotView extends StatelessWidget {
     
     Get.bottomSheet(
       Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.fromLTRB(
+          20, 
+          20, 
+          20, 
+          MediaQuery.of(context).viewInsets.bottom + 20 // 底部留出鍵盤高度 + 緩衝
+        ),
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),

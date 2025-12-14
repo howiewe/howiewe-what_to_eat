@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -19,8 +20,8 @@ class HomeController extends GetxController {
   final showResetBanner = false.obs;
 
   // --- 邏輯控制變數 ---
-  final _shownRestaurantIds = <String>{}; 
-  String? _selectedCategory; 
+  final _shownRestaurantIds = <String>{};
+  String? _selectedCategory;
 
   @override
   void onInit() {
@@ -37,7 +38,7 @@ class HomeController extends GetxController {
       // 在新的列表中，尋找目前正在使用的時段 ID
       try {
         final updatedSlot = updatedList.firstWhere(
-          (slot) => slot.id == currentTimeSlot.value!.id
+          (slot) => slot.id == currentTimeSlot.value!.id,
         );
 
         // A. 更新手中的資料 (這樣 UI 顯示的名字才會變)
@@ -47,39 +48,37 @@ class HomeController extends GetxController {
         if (updatedSlot.skipCategory) {
           // 如果變成了強制隨機，立刻切換模式
           isRandomMode.value = true;
-        } 
-        
+        }
+
         // C. 為了安全起見，重置當前的一輪狀態 (避免分類資料不一致)
         _resetSession();
-        
       } catch (e) {
         // 如果找不到 ID (代表目前的時段被刪除了)，則重新偵測適合的時段
         detectTimeSlot();
       }
     });
-
   }
-
-  
 
   // 1. [修正] 自動偵測時段
   void detectTimeSlot() {
     final now = DateTime.now();
-    String nowStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+    String nowStr =
+        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
     try {
       var match = db.timeSlots.firstWhere((slot) {
         if (slot.startTime == null || slot.endTime == null) return false;
         if (slot.startTime!.compareTo(slot.endTime!) < 0) {
-          return nowStr.compareTo(slot.startTime!) >= 0 && nowStr.compareTo(slot.endTime!) <= 0;
+          return nowStr.compareTo(slot.startTime!) >= 0 &&
+              nowStr.compareTo(slot.endTime!) <= 0;
         } else {
-          return nowStr.compareTo(slot.startTime!) >= 0 || nowStr.compareTo(slot.endTime!) <= 0;
+          return nowStr.compareTo(slot.startTime!) >= 0 ||
+              nowStr.compareTo(slot.endTime!) <= 0;
         }
       });
-      
+
       // 使用統一的方法切換，避免邏輯重複
       changeTimeSlot(match);
-      
     } catch (e) {
       if (db.timeSlots.isNotEmpty) {
         // 沒抓到時間就預設第一個，也走統一流程
@@ -112,22 +111,22 @@ class HomeController extends GetxController {
     // 如果當前時段是「強制隨機」，且現在已經是隨機模式，則禁止切換回引導
     if (currentTimeSlot.value?.skipCategory == true && isRandomMode.value) {
       Get.snackbar(
-        "模式鎖定", 
+        "模式鎖定",
         "此時段設定為強制隨機 (例如飲料/下午茶)，無法使用分類引導。",
         snackPosition: SnackPosition.BOTTOM,
         margin: const EdgeInsets.all(20),
       );
-      return; 
+      return;
     }
-    
+
     isRandomMode.toggle();
     _resetSession();
   }
 
   void _resetSession() {
     _shownRestaurantIds.clear();
-    _selectedCategory = null; 
-    currentResult.value = null; 
+    _selectedCategory = null;
+    currentResult.value = null;
     showResetBanner.value = false;
   }
 
@@ -136,14 +135,14 @@ class HomeController extends GetxController {
     Future.delayed(const Duration(seconds: 3), () {
       showResetBanner.value = false;
     });
-    _shownRestaurantIds.clear(); 
-    _selectedCategory = null;    
-    currentResult.value = null;  
-    isRolling.value = false;     
+    _shownRestaurantIds.clear();
+    _selectedCategory = null;
+    currentResult.value = null;
+    isRolling.value = false;
   }
 
   Future<void> startRoll() async {
-    if (isRolling.value) return; 
+    if (isRolling.value) return;
     if (currentLocation.value == null || currentTimeSlot.value == null) return;
 
     var baseCandidates = db.restaurants.where((r) {
@@ -163,8 +162,8 @@ class HomeController extends GetxController {
     } else {
       if (_selectedCategory != null) {
         var filtered = baseCandidates.where((r) {
-           String rCat = r.category.isEmpty ? "未分類" : r.category;
-           return rCat == _selectedCategory;
+          String rCat = r.category.isEmpty ? "未分類" : r.category;
+          return rCat == _selectedCategory;
         }).toList();
         _rollFromList(filtered);
       } else {
@@ -174,7 +173,7 @@ class HomeController extends GetxController {
             .toList();
 
         if (categories.length <= 1) {
-          _selectedCategory = categories.first; 
+          _selectedCategory = categories.first;
           _rollFromList(baseCandidates);
         } else {
           _showCategoryPicker(categories, baseCandidates);
@@ -184,29 +183,34 @@ class HomeController extends GetxController {
   }
 
   Future<void> _rollFromList(List<RestaurantModel> candidates) async {
-    var available = candidates.where((r) => !_shownRestaurantIds.contains(r.id)).toList();
+    var available = candidates
+        .where((r) => !_shownRestaurantIds.contains(r.id))
+        .toList();
 
     if (available.isEmpty) {
       _triggerResetMessage();
-      return; 
+      return;
     }
 
     isRolling.value = true;
     showResetBanner.value = false;
     currentResult.value = null;
-    
+
     await Future.delayed(const Duration(milliseconds: 800));
 
     final random = Random();
     final result = available[random.nextInt(available.length)];
-    
+
     currentResult.value = result;
     isRolling.value = false;
-    
+
     _shownRestaurantIds.add(result.id);
   }
 
-  void _showCategoryPicker(List<String> categories, List<RestaurantModel> allCandidates) {
+  void _showCategoryPicker(
+    List<String> categories,
+    List<RestaurantModel> allCandidates,
+  ) {
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(20),
@@ -218,7 +222,10 @@ class HomeController extends GetxController {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("你想吃哪一類？", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text(
+              "你想吃哪一類？",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 15),
             Wrap(
               spacing: 10,
@@ -229,7 +236,7 @@ class HomeController extends GetxController {
                   onPressed: () {
                     Get.back();
                     _selectedCategory = cat;
-                    startRoll(); 
+                    startRoll();
                   },
                 );
               }).toList(),
@@ -258,7 +265,7 @@ class HomeController extends GetxController {
     if (currentResult.value != null) {
       db.addToHistory(currentResult.value!.name);
       // 確認選擇後，重置 Session，避免下次誤判一輪結束
-      _resetSession(); 
+      _resetSession();
       isRolling.value = false;
     }
   }
@@ -290,5 +297,107 @@ class HomeController extends GetxController {
     } catch (e) {
       Get.snackbar("錯誤", "開啟失敗: $e");
     }
+  }
+
+  void showMenuDialog(BuildContext context, RestaurantModel result) {
+    final hasContact =
+        result.contactInfo != null && result.contactInfo!.isNotEmpty;
+    final isUrlLink = hasContact
+        ? isUrl(result.contactInfo!)
+        : false; // 這裡改名 isUrlLink 避免衝突
+
+    Get.dialog(
+      Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          iconTheme: const IconThemeData(color: Colors.white),
+          title: Text(result.name, style: const TextStyle(color: Colors.white)),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: 3 / 4,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[900],
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: InteractiveViewer(
+                        minScale: 1.0,
+                        maxScale: 5.0,
+                        child: Image.file(
+                          File(result.menuImage!),
+                          fit: BoxFit.contain,
+                          // 加入防呆，避免圖片讀不到時閃退
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.broken_image,
+                                    color: Colors.white54,
+                                  ),
+                                  Text(
+                                    "圖片無法讀取",
+                                    style: TextStyle(color: Colors.white54),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(20),
+              color: Colors.black,
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Get.back(); // 關閉 Dialog
+                          if (hasContact) {
+                            launchContactInfo(result.contactInfo!); // 直接呼叫自己的方法
+                          } else {
+                            confirmSelection(); // 直接呼叫自己的方法
+                          }
+                        },
+                        label: Text(!hasContact ? "決定這家" : "前往訂購"),
+                        icon: Icon(
+                          hasContact
+                              ? (isUrlLink ? Icons.public : Icons.call)
+                              : Icons.check_circle,
+                        ),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: !hasContact
+                              ? Colors.green
+                              : (isUrlLink ? Colors.blue : Colors.green),
+                          textStyle: const TextStyle(fontSize: 18),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      useSafeArea: false,
+    );
   }
 }

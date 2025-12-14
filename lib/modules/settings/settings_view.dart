@@ -62,8 +62,13 @@ class SettingsView extends StatelessWidget {
 
     Get.bottomSheet(
       Container(
-        height: MediaQuery.of(context).size.height * 0.9, // 加高一點，因為內容變多了
-        padding: const EdgeInsets.all(20),
+        height: MediaQuery.of(context).size.height * 0.9,
+        padding: EdgeInsets.fromLTRB(
+          20, 
+          20, 
+          20, 
+          MediaQuery.of(context).viewInsets.bottom + 20
+        ),
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),

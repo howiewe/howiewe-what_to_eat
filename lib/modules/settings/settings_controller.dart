@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,18 +11,18 @@ import '../../data/models/restaurant_model.dart';
 class SettingsController extends GetxController {
   final db = Get.find<DatabaseService>();
   final _picker = ImagePicker();
-  
+
   // --- 表單控制變數 ---
   final nameController = TextEditingController();
   final categoryController = TextEditingController();
   final contactController = TextEditingController();
-  
+
   // 用來追蹤類別輸入框的文字 (做智慧過濾用)
-  final searchText = "".obs; 
+  final searchText = "".obs;
 
   // 圖片路徑
-  final menuImagePath = RxnString(); 
-  
+  final menuImagePath = RxnString();
+
   // 勾選狀態
   final selectedLocationIds = <String>{}.obs;
   final selectedTimeSlotIds = <String>{}.obs;
@@ -68,7 +71,21 @@ class SettingsController extends GetxController {
     try {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
       if (image != null) {
-        menuImagePath.value = image.path;
+        // 1. 取得 App 的永久文件目錄
+        final directory = await getApplicationDocumentsDirectory();
+
+        // 2. 產生一個不重複的檔名 (使用 UUID + 原本的副檔名，例如 .jpg)
+        final String fileName =
+            '${const Uuid().v4()}${p.extension(image.path)}';
+
+        // 3. 完整的儲存路徑
+        final String savedPath = '${directory.path}/$fileName';
+
+        // 4. 將暫存圖片「複製」到永久路徑
+        await File(image.path).copy(savedPath);
+
+        // 5. 存入變數
+        menuImagePath.value = savedPath;
       }
     } catch (e) {
       Get.snackbar("錯誤", "無法選取圖片: $e");
@@ -85,11 +102,11 @@ class SettingsController extends GetxController {
     if (existingItem != null) {
       _editingId = existingItem.id;
       nameController.text = existingItem.name;
-      
+
       // 設定類別並手動觸發 searchText 更新
       categoryController.text = existingItem.category;
-      searchText.value = existingItem.category; 
-      
+      searchText.value = existingItem.category;
+
       contactController.text = existingItem.contactInfo ?? "";
       menuImagePath.value = existingItem.menuImage;
       selectedLocationIds.assignAll(existingItem.locationIds);
@@ -103,7 +120,7 @@ class SettingsController extends GetxController {
       menuImagePath.value = null;
       selectedLocationIds.clear();
       selectedTimeSlotIds.clear();
-      
+
       if (db.locations.length == 1) {
         selectedLocationIds.add(db.locations.first.id);
       }
@@ -125,7 +142,9 @@ class SettingsController extends GetxController {
       id: _editingId ?? const Uuid().v4(),
       name: nameController.text,
       category: categoryController.text,
-      contactInfo: contactController.text.isEmpty ? null : contactController.text,
+      contactInfo: contactController.text.isEmpty
+          ? null
+          : contactController.text,
       menuImage: menuImagePath.value,
       locationIds: selectedLocationIds.toList(),
       timeSlotIds: selectedTimeSlotIds.toList(),
@@ -144,7 +163,7 @@ class SettingsController extends GetxController {
   void deleteItem(String id) {
     db.deleteRestaurant(id);
   }
-  
+
   void toggleLocation(String id) {
     if (selectedLocationIds.contains(id)) {
       selectedLocationIds.remove(id);
