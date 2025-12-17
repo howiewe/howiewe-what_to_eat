@@ -104,6 +104,11 @@ class DatabaseService extends GetxService {
     _saveLocations();
   }
 
+  void addLocationWithId(String id, String name) {
+    locations.add(LocationModel(id: id, name: name));
+    _saveLocations();
+  }
+
   void updateLocation(LocationModel item) {
     int index = locations.indexWhere((e) => e.id == item.id);
     if (index != -1) {

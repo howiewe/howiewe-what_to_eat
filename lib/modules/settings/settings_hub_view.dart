@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'settings_view.dart';
 import 'timeslot_view.dart';
 import 'location_view.dart'; // 記得引入這個
+import '../../data/services/data_transfer_service.dart'; 
 
 class SettingsHubView extends StatelessWidget {
   const SettingsHubView({super.key});
@@ -13,6 +14,17 @@ class SettingsHubView extends StatelessWidget {
       appBar: AppBar(
         title: const Text("設定"),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined), // 或是 Icons.folder_open
+            tooltip: "匯入備份",
+            onPressed: () {
+              // 呼叫服務執行匯入
+              Get.find<DataTransferService>().importData();
+            },
+          ),
+          const SizedBox(width: 8), //稍微留點邊距
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

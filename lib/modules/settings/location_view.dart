@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../data/services/database_service.dart';
 import '../../data/models/location_model.dart';
+import '../../data/services/data_transfer_service.dart';
 
 class LocationController extends GetxController {
   final db = Get.find<DatabaseService>();
@@ -61,75 +62,102 @@ class LocationView extends StatelessWidget {
         onPressed: () => _showEditor(context, controller),
         child: const Icon(Icons.add),
       ),
-      body: Obx(() => ListView.separated(
-        itemCount: controller.db.locations.length,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final item = controller.db.locations[index];
-          return Dismissible(
-            key: Key(item.id),
-            direction: DismissDirection.endToStart,
-            background: Container(
-              color: Colors.red,
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20),
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-            // 加入確認對話框以免誤刪
-            confirmDismiss: (direction) async {
-              if (controller.db.locations.length <= 1) {
-                Get.snackbar("無法刪除", "至少需要保留一個地區設定");
-                return false;
-              }
-              return true; 
-            },
-            onDismissed: (_) => controller.delete(item.id),
-            child: ListTile(
-              leading: const Icon(Icons.location_on, color: Colors.grey),
-              title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              trailing: const Icon(Icons.edit, size: 16, color: Colors.grey),
-              onTap: () => _showEditor(context, controller, item),
-            ),
-          );
-        },
-      )),
+      body: Obx(
+        () => ListView.separated(
+          itemCount: controller.db.locations.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final item = controller.db.locations[index];
+            return Dismissible(
+              key: Key(item.id),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                color: Colors.red,
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 20),
+                child: const Icon(Icons.delete, color: Colors.white),
+              ),
+              // 加入確認對話框以免誤刪
+              confirmDismiss: (direction) async {
+                if (controller.db.locations.length <= 1) {
+                  Get.snackbar("無法刪除", "至少需要保留一個地區設定");
+                  return false;
+                }
+                return true;
+              },
+              onDismissed: (_) => controller.delete(item.id),
+              child: ListTile(
+                leading: const Icon(Icons.location_on, color: Colors.grey),
+                title: Text(
+                  item.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min, // 這一行很重要，不然 Row 會佔滿整行
+                  children: [
+                    // 1. 匯出/分享按鈕
+                    IconButton(
+                      icon: const Icon(Icons.share, color: Colors.blueAccent),
+                      tooltip: "分享此地區資料",
+                      onPressed: () {
+                        // 呼叫服務執行匯出
+                        Get.find<DataTransferService>().exportLocation(item);
+                      },
+                    ),
+                    // 2. 編輯按鈕 (原本的功能)
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.grey),
+                      tooltip: "編輯名稱",
+                      onPressed: () => _showEditor(context, controller, item),
+                    ),
+                  ],
+                ),
+                onTap: () => _showEditor(context, controller, item),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
-  void _showEditor(BuildContext context, LocationController controller, [LocationModel? item]) {
+  void _showEditor(
+    BuildContext context,
+    LocationController controller, [
+    LocationModel? item,
+  ]) {
     controller.openEditor(item);
 
     Get.bottomSheet(
       Container(
         padding: EdgeInsets.fromLTRB(
-          20, 
-          20, 
-          20, 
-          MediaQuery.of(context).viewInsets.bottom + 20 // 底部留出鍵盤高度 + 緩衝
+          20,
+          20,
+          20,
+          MediaQuery.of(context).viewInsets.bottom + 20, // 底部留出鍵盤高度 + 緩衝
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(item == null ? "新增地區" : "編輯地區", 
-                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              item == null ? "新增地區" : "編輯地區",
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 20),
-            
+
             TextField(
               controller: controller.nameController,
               autofocus: true, // 自動跳出鍵盤
               decoration: const InputDecoration(
-                labelText: "地區名稱 (如: 家, 公司, 學校)", 
+                labelText: "地區名稱 (如: 家, 公司, 學校)",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.location_city),
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            FilledButton(
-              onPressed: controller.save,
-              child: const Text("儲存"),
-            ),
+            FilledButton(onPressed: controller.save, child: const Text("儲存")),
             const SizedBox(height: 20),
           ],
         ),
